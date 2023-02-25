@@ -1,5 +1,6 @@
 # Console-Video-Player
 Watch videos you convert with video2console.exe!  
+If you just want the exe, go [https://github.com/CVConverter/video-to-puretext-converter/releases](https://github.com/CVConverter/video-to-puretext-converter/releases) for releases.
 
 ![图片](https://user-images.githubusercontent.com/68136140/221356662-92c914b5-cf98-4daf-bd9d-a74ee894127b.png)
 
