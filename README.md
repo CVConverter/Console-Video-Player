@@ -36,7 +36,8 @@ and those ones can't be automatically play by the program, you need to manualy e
   
 ## NOTICE
 - if the video seems doesn't right, try maximze or full-screen the video player console window.  
-
+(Try maximze full-screen the console before opening the video(set the default value))  
+  
 # How to compile and edit
 ## requirements:  
 - Microsoft Windows 10 20H1 or higher(not tested on windows 11 or windows 7, you can try it yourself.)
