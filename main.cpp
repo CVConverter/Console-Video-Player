@@ -1,17 +1,27 @@
 #pragma once
+
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <iostream>
 #include <string>
 #include <algorithm>
 
 #include <fstream>
+#include <thread>
+
 #include <windows.h>
 
 #include <mmsystem.h>
 #pragma comment (lib, "winmm.lib")
 
+#include <opencv2/opencv.hpp>
+
 using namespace std;
 
 #define cmd(str) system(((string)str).c_str())
+
+bool stop = false;
+int AStart = -2;
 
 void showCursor(bool state)
 {
@@ -24,12 +34,10 @@ void showCursor(bool state)
 	CONSOLE_CURSOR_INFO cci = { 1,state };
 	SetConsoleCursorInfo(hOutput, &cci);
 }
-
 inline void gotoxy(int x, int y)
 {
 	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), { (short)x, (short)y });
 }
-
 void noQuickEdit()
 {
 	HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
@@ -41,11 +49,64 @@ void noQuickEdit()
 	SetConsoleMode(hStdin, mode);
 	return;
 }
+void fullScreen(HWND hwnd)
+{
+	ShowWindow(hwnd, SW_MAXIMIZE);
+}
+void setFontSize(int size = 6)
+{
+	CONSOLE_FONT_INFOEX cfi;
+	cfi.cbSize = sizeof(cfi);
+	cfi.nFont = 0;
+	cfi.dwFontSize.X = 0;                   // Width of each character in the font
+	cfi.dwFontSize.Y = size;                  // Height
+	cfi.FontFamily = FF_DONTCARE;
+	cfi.FontWeight = FW_NORMAL;
+	std::wcscpy(cfi.FaceName, L"Consolas"); // Choose your font
+	SetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), FALSE, &cfi);
+}
+
+void playVideo(string target)
+{
+	if (target.length() < 5)
+	{
+		return;
+	}
+
+	cv::namedWindow("video", cv::WINDOW_KEEPRATIO);
+	cv::VideoCapture cap;
+	cap.open(target);
+	register cv::Mat now;
+	register double delay = 1000.0 / cap.get(cv::CAP_PROP_FPS);
+
+	register clock_t start;
+	register unsigned long long currentFrame = 0;
+
+	++AStart;
+	while (AStart) {};
+	start = clock();
+	while(!stop)
+	{
+		++currentFrame;
+		cap >> now;
+		if (now.empty())
+		{
+			break;
+		}
+		cv::imshow("video", now);
+		while (1.0 * (clock() - start) / CLOCKS_PER_SEC * 1000 / delay < currentFrame)
+		{
+			cv::waitKey(1);
+		}
+	}
+}
 
 void play(string target, string tSound)
 {
 	noQuickEdit();
 	showCursor(0);
+	fullScreen(FindWindowA("ConsoleWindowClass", "Console Video Player"));
+	setFontSize();
 
 	fstream fin;
 	fin.open(target);
@@ -56,12 +117,10 @@ void play(string target, string tSound)
 	}
 	int fps;
 	fin >> fps;
-	register double currentFPS = 0, dur = 0;
-	clock_t totalStart=clock(), totalEnd;
-	register clock_t start, end;
+	register clock_t start, cur;
+	register double delay = 1000.0 / fps;
+	register unsigned long long currentFrame = 0;
 	register char line[1024];
-	register float averageSleep = 1000.0 / fps;
-	register int currentFrame = 0;
 	memset(line, '\0', sizeof(line));
 
 	if (tSound.size()>2)
@@ -69,11 +128,13 @@ void play(string target, string tSound)
 		PlaySoundA(tSound.c_str(), NULL, SND_FILENAME | SND_ASYNC);
 	}
 
+	++AStart;
+	while (AStart) {};
+	start = clock();
 	while (!fin.eof())
 	{
-		start = clock();
-		gotoxy(0, 0);
 		++currentFrame;
+		gotoxy(0, 0);
 		while (!fin.eof())
 		{
 			fin.getline(line, 1024);
@@ -84,21 +145,11 @@ void play(string target, string tSound)
 			fputs(line, stdout);
 			cout << "\n";
 		}
-		while (clock() - start < averageSleep);
-		end = clock();
-		dur = end - start;
-		currentFPS = 1000.0 / dur;
-		if (currentFPS > fps)
+		while (1.0 * (clock() - start) / CLOCKS_PER_SEC * 1000 / delay < currentFrame)
 		{
-			averageSleep += 1;
-		}
-		else
-		{
-			averageSleep -= 1;
+			Sleep(1);
 		}
 	}
-	totalEnd = clock();
-	// std::cout << "\n\ntotal time:" << (totalEnd - totalStart) / CLOCKS_PER_SEC << endl;
 }
 
 int main(int argc, char *argv[])
@@ -108,16 +159,19 @@ int main(int argc, char *argv[])
 
 	system("title Console Video Player");
 
-	string targ, tSnd;
+	string targ, tSnd, tVdo;
 	if (argc > 1)
 	{
 		targ = argv[1];
 		tSnd = argv[1];
+		tVdo = argv[1];
 		int i;
 		char nametype[4] = "wav";
+		char nametype2[4] = "mp4";
 		for (i = 0; i < 3; ++i)
 		{
 			tSnd[targ.size() + i - 3] = nametype[i];
+			tVdo[targ.size() + i - 3] = nametype2[i];
 		}
 
 		ifstream fin;
@@ -131,6 +185,16 @@ int main(int argc, char *argv[])
 			fin.close();
 			tSnd.clear();
 		}
+		fin.open(tVdo);
+		if (fin.is_open())
+		{
+			fin.close();
+		}
+		else
+		{
+			fin.close();
+			tVdo.clear();
+		}
 	}
 	else
 	{
@@ -142,6 +206,12 @@ int main(int argc, char *argv[])
 
 	system("cls");
 
+	thread thdPlayVideo(playVideo, tVdo);
 	play(targ, tSnd);
+	stop = true;
+	if (thdPlayVideo.joinable())
+	{
+		thdPlayVideo.join();
+	}
 	return 0;
 }
